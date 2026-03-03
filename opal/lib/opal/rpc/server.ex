@@ -1166,7 +1166,7 @@ defmodule Opal.RPC.Server do
   # ── Stdin reader ───────────────────────────────────────────────────
 
   defp stdin_loop(parent) do
-    case :erlang.open_port(:stdio, [:binary, :stream, :eof]) do
+    case :erlang.open_port({:fd, 0, 1}, [:binary, :stream, :eof, :in]) do
       port when is_port(port) ->
         read_loop(port, parent, "")
 
