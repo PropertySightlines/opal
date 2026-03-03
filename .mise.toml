@@ -18,7 +18,7 @@ run = "mix compile --warnings-as-errors"
 description = "Generate TS types from Elixir schemas"
 dir = "opal"
 depends = ["build:core"]
-run = "mix run ../scripts/codegen_ts.exs"
+run = "mix run --no-start ../scripts/codegen_ts.exs"
 
 [tasks."build:cli"]
 description = "Compile TypeScript CLI"
@@ -135,7 +135,7 @@ run = "elixir --sname opal -S mix run --no-halt"
 [tasks."codegen:check"]
 description = "Verify codegen is up-to-date"
 dir = "opal"
-run = "mix run ../scripts/codegen_ts.exs --check"
+run = "mix run --no-start ../scripts/codegen_ts.exs --check"
 
 [tasks.precommit]
 description = "Run everything CI checks: deps, codegen, lint, build, test"
