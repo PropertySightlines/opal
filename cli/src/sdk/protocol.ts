@@ -69,7 +69,7 @@ export type AuthStatusParams = Record<string, never>;
 
 export type AuthStatusResult = {
   /** Probe result: status is 'ready' or 'setup_required', provider is 'copilot' or null. */
-  auth: { provider: string; status: string };
+  auth: { provider: string; status: string; available_providers?: string[] };
   /** True if Copilot credentials are available. */
   authenticated: boolean;
 };
@@ -226,7 +226,7 @@ export type SessionStartParams = {
 
 export type SessionStartResult = {
   /** Auth probe result: status is 'ready' or 'setup_required', provider is 'copilot' or null. */
-  auth: { provider: string; status: string };
+  auth: { provider: string; status: string; available_providers?: string[] };
   /** Names of discovered skills (not yet loaded). */
   availableSkills: string[];
   /** Paths of loaded context files. */
