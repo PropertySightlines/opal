@@ -16,17 +16,9 @@ defmodule Opal.Application do
       {DynamicSupervisor, name: Opal.SessionSupervisor, strategy: :one_for_one}
     ]
 
-    # Only start stdio transport when enabled (default true for backward compat;
-    # set `config :opal, start_rpc: false` for embedded SDK use).
-    # 
-    # NOTE: We now always start the RPC server and handle TTY errors gracefully.
-    # The server will detect TTY and log a warning instead of failing silently.
-    children =
-      if Application.get_env(:opal, :start_rpc, true) do
-        children ++ [Opal.RPC.Server]
-      else
-        children
-      end
+    # Don't start RPC server automatically - it will be started by the CLI
+    # when stdin is properly piped. This avoids TTY conflicts.
+    # The RPC server is started via Opal.RPC.Server.start_link/1 when needed.
 
     opts = [strategy: :rest_for_one, name: Opal.Supervisor]
 

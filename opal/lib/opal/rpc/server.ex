@@ -139,6 +139,9 @@ defmodule Opal.RPC.Server do
   end
 
   defp handle_request(id, method, params, state) do
+    # Normalize params to handle both camelCase (from CLI) and snake_case keys
+    params = normalize_param_keys(params)
+    
     try do
       case dispatch(method, params) do
         {:ok, result} ->
@@ -517,20 +520,26 @@ defmodule Opal.RPC.Server do
   def dispatch("opal/config/get", _),
     do: error(:invalid_params, "Missing required param: session_id")
 
-  def dispatch("opal/config/set", %{"session_id" => sid} = params) do
-    with {:ok, agent} <- find_agent(sid),
-         {:ok, features} <- parse_features(Map.get(params, "features")),
-         {:ok, tools} <- parse_string_list(Map.get(params, "tools"), "tools"),
-         :ok <- validate_tool_names(tools, fn -> Opal.Agent.get_state(agent).tools end),
-         {:ok, _} <- handle_distribution(Map.get(params, "distribution", :skip)) do
-      :ok = Opal.configure_session(agent, %{features: features, enabled_tools: tools})
-      {:ok, serialize_runtime_config(Opal.Agent.get_state(agent))}
-    else
-      {:error, reason} when is_binary(reason) ->
-        error(:invalid_params, "Session not found", reason)
+  def dispatch("opal/config/set", params) when is_map(params) do
+    sid = params["session_id"]
 
-      {:error, msg, data} ->
-        error(:invalid_params, msg, data)
+    if is_nil(sid) or not is_binary(sid) do
+      error(:invalid_params, "Missing required param: session_id")
+    else
+      with {:ok, agent} <- find_agent(sid),
+           {:ok, features} <- parse_features(Map.get(params, "features")),
+           {:ok, tools} <- parse_string_list(Map.get(params, "tools"), "tools"),
+           :ok <- validate_tool_names(tools, fn -> Opal.Agent.get_state(agent).tools end),
+           {:ok, _} <- handle_distribution(Map.get(params, "distribution", :skip)) do
+        :ok = Opal.configure_session(agent, %{features: features, enabled_tools: tools})
+        {:ok, serialize_runtime_config(Opal.Agent.get_state(agent))}
+      else
+        {:error, reason} when is_binary(reason) ->
+          error(:invalid_params, "Session not found", reason)
+
+        {:error, msg, data} ->
+          error(:invalid_params, msg, data)
+      end
     end
   end
 
@@ -607,6 +616,30 @@ defmodule Opal.RPC.Server do
   end
 
   defp decode_session_opts(_), do: error(:invalid_params, "params must be an object")
+
+  # Convert camelCase keys to snake_case recursively for backward compatibility with CLI
+  defp normalize_param_keys(params) when is_map(params) do
+    params
+    |> Enum.map(fn {key, value} ->
+      {camel_to_snake_key(key), normalize_param_keys(value)}
+    end)
+    |> Map.new()
+  end
+
+  defp normalize_param_keys(value) when is_list(value) do
+    Enum.map(value, &normalize_param_keys/1)
+  end
+
+  defp normalize_param_keys(value), do: value
+
+  # Convert a single key from camelCase to snake_case
+  defp camel_to_snake_key(key) when is_binary(key) do
+    key
+    |> String.replace(~r/([A-Z])/, "_\\1")
+    |> String.downcase()
+  end
+
+  defp camel_to_snake_key(key), do: key
 
   @doc false
   @spec resolve_provider_config(map()) :: {:ok, keyword()} | {:error, integer(), String.t(), term()}
@@ -1133,7 +1166,7 @@ defmodule Opal.RPC.Server do
   # ── Stdin reader ───────────────────────────────────────────────────
 
   defp stdin_loop(parent) do
-    case :erlang.open_port({:fd, 0, 0}, [:binary, :stream, :eof]) do
+    case :erlang.open_port(:stdio, [:binary, :stream, :eof]) do
       port when is_port(port) ->
         read_loop(port, parent, "")
 
