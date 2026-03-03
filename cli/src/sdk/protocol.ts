@@ -69,7 +69,7 @@ export type AuthStatusParams = Record<string, never>;
 
 export type AuthStatusResult = {
   /** Probe result: status is 'ready' or 'setup_required', provider is 'copilot' or null. */
-  auth: { provider: string; status: string; available_providers?: string[] };
+  auth: { provider: string; status: string; available_providers: string[] };
   /** True if Copilot credentials are available. */
   authenticated: boolean;
 };
@@ -226,7 +226,7 @@ export type SessionStartParams = {
 
 export type SessionStartResult = {
   /** Auth probe result: status is 'ready' or 'setup_required', provider is 'copilot' or null. */
-  auth: { provider: string; status: string; available_providers?: string[] };
+  auth: { provider: string; status: string };
   /** Names of discovered skills (not yet loaded). */
   availableSkills: string[];
   /** Paths of loaded context files. */
@@ -510,24 +510,21 @@ export type AgentEvent =
   | TurnEndEvent
   | UsageUpdateEvent;
 
+
 export type OrchestratorRunParams = {
   /** Target session ID. */
   sessionId: string;
   /** The user's prompt text. */
   text: string;
-  /** Mode: "multi" for parallel agents, "sequential" for pipeline. */
+  /** Run mode: "multi" for parallel multi-agent, "sequential" for pipeline. */
   mode: "multi" | "sequential";
-  /** Number of agents to run (for multi mode). Default: 3. */
+  /** Number of agents to run in parallel (for multi mode). */
   agentCount?: number;
 };
 
 export type OrchestratorRunResult = {
   /** The orchestrator session ID. */
   orchestratorSessionId: string;
-  /** Number of agents spawned. */
-  agentCount: number;
-  /** True when the orchestrator was busy and the message was queued. */
-  queued: boolean;
 };
 
 // --- Method constants ---
@@ -556,9 +553,9 @@ export const Methods = {
   TASKS_LIST: "tasks/list" as const,
   THINKING_SET: "thinking/set" as const,
   CLIENT_ASK_USER: "client/ask_user" as const,
-  ORCHESTRATOR_RUN: "orchestrator/run" as const,
   CLIENT_CONFIRM: "client/confirm" as const,
   CLIENT_INPUT: "client/input" as const,
+  ORCHESTRATOR_RUN: "orchestrator/run" as const,
 } as const;
 
 // --- Helper types ---
@@ -633,7 +630,6 @@ export interface MethodTypes {
   "settings/save": { params: SettingsSaveParams; result: SettingsSaveResult };
   "tasks/list": { params: TasksListParams; result: TasksListResult };
   "thinking/set": { params: ThinkingSetParams; result: ThinkingSetResult };
-  "orchestrator/run": { params: OrchestratorRunParams; result: OrchestratorRunResult };
   "client/ask_user": {
     params: ClientAsk_userParams;
     result: ClientAsk_userResult;
@@ -643,4 +639,5 @@ export interface MethodTypes {
     result: ClientConfirmResult;
   };
   "client/input": { params: ClientInputParams; result: ClientInputResult };
+  "orchestrator/run": { params: OrchestratorRunParams; result: OrchestratorRunResult };
 }
