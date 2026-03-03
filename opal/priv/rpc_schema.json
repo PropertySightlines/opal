@@ -248,6 +248,195 @@
         ],
         "type": "object"
       },
+      "orchestrator_agent_end": {
+        "description": "An agent has finished executing a subtask.",
+        "properties": {
+          "agent_id": {
+            "description": "Unique agent identifier.",
+            "type": "string"
+          },
+          "output": {
+            "description": "Agent output or error message.",
+            "type": "string"
+          },
+          "session_id": {
+            "description": "Session this event belongs to.",
+            "type": "string"
+          },
+          "status": {
+            "description": "One of: success, error.",
+            "type": "string"
+          },
+          "subtask_id": {
+            "description": "Subtask that was executed.",
+            "type": "string"
+          },
+          "type": {
+            "const": "orchestrator_agent_end",
+            "description": "Event type discriminator.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "session_id",
+          "agent_id",
+          "subtask_id",
+          "status",
+          "output"
+        ],
+        "type": "object"
+      },
+      "orchestrator_agent_start": {
+        "description": "An agent has started executing a subtask.",
+        "properties": {
+          "agent_id": {
+            "description": "Unique agent identifier.",
+            "type": "string"
+          },
+          "provider": {
+            "description": "LLM provider assigned to this agent.",
+            "type": "string"
+          },
+          "session_id": {
+            "description": "Session this event belongs to.",
+            "type": "string"
+          },
+          "subtask_id": {
+            "description": "Subtask being executed.",
+            "type": "string"
+          },
+          "type": {
+            "const": "orchestrator_agent_start",
+            "description": "Event type discriminator.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "session_id",
+          "agent_id",
+          "subtask_id",
+          "provider"
+        ],
+        "type": "object"
+      },
+      "orchestrator_end": {
+        "description": "Orchestrator has finished executing all agents.",
+        "properties": {
+          "error_count": {
+            "description": "Number of failed agent executions.",
+            "type": "integer"
+          },
+          "result": {
+            "description": "Aggregated result from all agents.",
+            "type": "object"
+          },
+          "session_id": {
+            "description": "Session this event belongs to.",
+            "type": "string"
+          },
+          "success_count": {
+            "description": "Number of successful agent executions.",
+            "type": "integer"
+          },
+          "type": {
+            "const": "orchestrator_end",
+            "description": "Event type discriminator.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "session_id",
+          "success_count",
+          "error_count",
+          "result"
+        ],
+        "type": "object"
+      },
+      "orchestrator_progress": {
+        "description": "Progress update during orchestrator execution.",
+        "properties": {
+          "completed": {
+            "description": "Number of completed agents.",
+            "type": "integer"
+          },
+          "current": {
+            "description": "Current agent or subtask being executed.",
+            "type": "string"
+          },
+          "session_id": {
+            "description": "Session this event belongs to.",
+            "type": "string"
+          },
+          "total": {
+            "description": "Total number of agents.",
+            "type": "integer"
+          },
+          "type": {
+            "const": "orchestrator_progress",
+            "description": "Event type discriminator.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "session_id",
+          "completed",
+          "total",
+          "current"
+        ],
+        "type": "object"
+      },
+      "orchestrator_start": {
+        "description": "Orchestrator has started executing a task.",
+        "properties": {
+          "session_id": {
+            "description": "Session ID for this orchestrator run.",
+            "type": "string"
+          },
+          "strategy": {
+            "description": "Execution strategy for this task.",
+            "properties": {
+              "agent_count": {
+                "type": "integer"
+              },
+              "complexity": {
+                "type": "string"
+              },
+              "providers": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "topology": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "agent_count",
+              "complexity",
+              "providers",
+              "topology"
+            ],
+            "type": "object"
+          },
+          "type": {
+            "const": "orchestrator_start",
+            "description": "Event type discriminator.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "session_id",
+          "session_id",
+          "strategy"
+        ],
+        "type": "object"
+      },
       "skill_loaded": {
         "description": "An agent skill was dynamically loaded into context.",
         "properties": {
@@ -676,74 +865,71 @@
           "type": "object"
         }
       },
-      "auth/login": {
-        "description": "Start the device-code OAuth login flow.",
+      "auth/provider_config": {
+        "description": "Get the API endpoint and key configuration for a specific provider.",
+        "params": {
+          "properties": {
+            "provider": {
+              "description": "Provider name (e.g., 'openrouter', 'groq', 'nvidia', 'cerebras').",
+              "type": "string"
+            }
+          },
+          "required": [
+            "provider"
+          ],
+          "type": "object"
+        },
+        "result": {
+          "properties": {
+            "config": {
+              "description": "Provider configuration with endpoint URL and API key.",
+              "properties": {
+                "api_key": {
+                  "type": "string"
+                },
+                "endpoint": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "api_key",
+                "endpoint"
+              ],
+              "type": "object"
+            },
+            "provider": {
+              "description": "The provider name.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "provider",
+            "config"
+          ],
+          "type": "object"
+        }
+      },
+      "auth/providers": {
+        "description": "List all supported API key providers and their environment variable names.",
         "params": {
           "properties": {},
           "type": "object"
         },
         "result": {
           "properties": {
-            "device_code": {
-              "description": "Device code for polling.",
-              "type": "string"
-            },
-            "interval": {
-              "description": "Polling interval in seconds.",
-              "type": "integer"
-            },
-            "user_code": {
-              "description": "Code for the user to enter.",
-              "type": "string"
-            },
-            "verification_uri": {
-              "description": "URL to visit.",
-              "type": "string"
+            "providers": {
+              "description": "Map of provider name to environment variable name.",
+              "type": "object"
             }
           },
           "required": [
-            "user_code",
-            "verification_uri",
-            "device_code",
-            "interval"
-          ],
-          "type": "object"
-        }
-      },
-      "auth/poll": {
-        "description": "Poll for device-code authorization and exchange for a Copilot token.",
-        "params": {
-          "properties": {
-            "device_code": {
-              "description": "Device code from auth/login.",
-              "type": "string"
-            },
-            "interval": {
-              "description": "Polling interval in seconds.",
-              "type": "integer"
-            }
-          },
-          "required": [
-            "device_code",
-            "interval"
-          ],
-          "type": "object"
-        },
-        "result": {
-          "properties": {
-            "authenticated": {
-              "description": "True once the user has authorized.",
-              "type": "boolean"
-            }
-          },
-          "required": [
-            "authenticated"
+            "providers"
           ],
           "type": "object"
         }
       },
       "auth/status": {
-        "description": "Probe Copilot credentials and return auth readiness.",
+        "description": "Probe for API key credentials and return auth readiness. If any API keys are configured in environment variables, the system is auto-authenticated.",
         "params": {
           "properties": {},
           "type": "object"
@@ -751,8 +937,14 @@
         "result": {
           "properties": {
             "auth": {
-              "description": "Probe result: status is 'ready' or 'setup_required', provider is 'copilot' or null.",
+              "description": "Probe result: status is 'ready' if API keys exist or 'setup_required' if not. provider is the first available provider. available_providers lists ALL providers with configured API keys.",
               "properties": {
+                "available_providers": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
                 "provider": {
                   "type": "string"
                 },
@@ -761,13 +953,14 @@
                 }
               },
               "required": [
+                "available_providers",
                 "provider",
                 "status"
               ],
               "type": "object"
             },
             "authenticated": {
-              "description": "True if Copilot credentials are available.",
+              "description": "True if API key credentials are available.",
               "type": "boolean"
             }
           },
@@ -831,13 +1024,20 @@
         }
       },
       "models/list": {
-        "description": "List available LLM models from Copilot.",
+        "description": "List available LLM models and configured API key providers.",
         "params": {
           "properties": {},
           "type": "object"
         },
         "result": {
           "properties": {
+            "available_providers": {
+              "description": "List of API key providers that are configured (e.g., 'openrouter', 'groq', 'nvidia', 'cerebras').",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
             "models": {
               "description": "Array of {id, name, provider, supports_thinking}.",
               "items": {
@@ -847,7 +1047,8 @@
             }
           },
           "required": [
-            "models"
+            "models",
+            "available_providers"
           ],
           "type": "object"
         }
@@ -1120,6 +1321,265 @@
           "required": [
             "server_version",
             "protocol_version"
+          ],
+          "type": "object"
+        }
+      },
+      "orchestrator/analyze": {
+        "description": "Analyze a task without executing it. Returns the recommended execution strategy.",
+        "params": {
+          "properties": {
+            "task": {
+              "description": "Task to analyze. Must include description. May include subtasks and dependencies.",
+              "properties": {
+                "dependencies": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "subtasks": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "description"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "task"
+          ],
+          "type": "object"
+        },
+        "result": {
+          "properties": {
+            "strategy": {
+              "description": "Recommended execution strategy.",
+              "properties": {
+                "agent_count": {
+                  "type": "integer"
+                },
+                "complexity": {
+                  "type": "string"
+                },
+                "providers": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "topology": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "agent_count",
+                "complexity",
+                "providers",
+                "topology"
+              ],
+              "type": "object"
+            },
+            "task_summary": {
+              "description": "Summary of the analyzed task.",
+              "properties": {
+                "description": {
+                  "type": "string"
+                },
+                "has_dependencies": {
+                  "type": "boolean"
+                },
+                "subtask_count": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "description",
+                "has_dependencies",
+                "subtask_count"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "strategy",
+            "task_summary"
+          ],
+          "type": "object"
+        }
+      },
+      "orchestrator/run": {
+        "description": "Run the orchestrator with a task description. Streams events during execution and returns aggregated results.",
+        "params": {
+          "properties": {
+            "options": {
+              "description": "Execution options: agent_count, topology (parallel|sequential|auto), timeout, providers, on_error, parallel_count.",
+              "properties": {
+                "agent_count": {
+                  "type": "integer"
+                },
+                "on_error": {
+                  "type": "string"
+                },
+                "parallel_count": {
+                  "type": "integer"
+                },
+                "providers": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "timeout": {
+                  "type": "integer"
+                },
+                "topology": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "task": {
+              "description": "Task to execute. Must include description. May include subtasks, dependencies, and input data.",
+              "properties": {
+                "dependencies": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "input": {
+                  "type": "object"
+                },
+                "subtasks": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "description"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "task"
+          ],
+          "type": "object"
+        },
+        "result": {
+          "properties": {
+            "result": {
+              "description": "Aggregated result from all agents. Contains outputs, success_count, error_count, and topology-specific data.",
+              "type": "object"
+            },
+            "session_id": {
+              "description": "Session ID for this orchestrator run.",
+              "type": "string"
+            },
+            "strategy": {
+              "description": "The execution strategy determined by task analysis.",
+              "properties": {
+                "agent_count": {
+                  "type": "integer"
+                },
+                "complexity": {
+                  "type": "string"
+                },
+                "providers": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "topology": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "agent_count",
+                "complexity",
+                "providers",
+                "topology"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "session_id",
+            "strategy",
+            "result"
+          ],
+          "type": "object"
+        }
+      },
+      "orchestrator/status": {
+        "description": "Get the execution status of a running or completed orchestrator task.",
+        "params": {
+          "properties": {
+            "session_id": {
+              "description": "Session ID of the orchestrator run.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "session_id"
+          ],
+          "type": "object"
+        },
+        "result": {
+          "properties": {
+            "error": {
+              "description": "Error message if status is error.",
+              "type": "string"
+            },
+            "progress": {
+              "description": "Progress information if running.",
+              "properties": {
+                "completed_agents": {
+                  "type": "integer"
+                },
+                "current_agent": {
+                  "type": "string"
+                },
+                "total_agents": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "completed_agents",
+                "current_agent",
+                "total_agents"
+              ],
+              "type": "object"
+            },
+            "result": {
+              "description": "Aggregated result if completed.",
+              "type": "object"
+            },
+            "status": {
+              "description": "One of: running, completed, error, not_found.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "status",
+            "progress",
+            "result",
+            "error"
           ],
           "type": "object"
         }

@@ -38,8 +38,6 @@ import type {
   SettingsGetResult,
   SettingsSaveResult,
   AuthStatusResult,
-  AuthLoginResult,
-  AuthPollResult,
   AgentEvent,
 } from "./protocol.js";
 
@@ -330,14 +328,6 @@ export class Session {
     /** Check current auth status. */
     status: async (): Promise<AuthStatusResult> => {
       return this.#client.request("auth/status");
-    },
-    /** Start a device-code login flow. */
-    login: async (): Promise<AuthLoginResult> => {
-      return this.#client.request("auth/login");
-    },
-    /** Poll for device-code login completion. */
-    poll: async (deviceCode: string, interval: number): Promise<AuthPollResult> => {
-      return this.#client.request("auth/poll", { deviceCode, interval });
     },
   };
 

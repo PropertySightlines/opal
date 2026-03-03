@@ -32,7 +32,7 @@ export const createAuthSlice: StateCreator<AuthSlice, [], [], AuthSlice> = (set)
     void session.auth_
       .status()
       .then((res) => {
-        const availableProviders = res.auth?.available_providers || [];
+        const availableProviders = res.auth?.availableProviders || [];
         
         if (availableProviders.length > 0) {
           // Auto-authenticate with API key providers
@@ -65,7 +65,7 @@ export const createAuthSlice: StateCreator<AuthSlice, [], [], AuthSlice> = (set)
     void session.auth_
       .status()
       .then((res) => {
-        const availableProviders = res.auth?.available_providers || [];
+        const availableProviders = res.auth?.availableProviders || [];
         if (availableProviders.length > 0) {
           set({
             ...AUTH_INITIAL,

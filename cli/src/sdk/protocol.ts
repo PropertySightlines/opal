@@ -40,37 +40,31 @@ export type AgentStateResult = {
   tools: string[];
 };
 
-export type AuthLoginParams = Record<string, never>;
-
-export type AuthLoginResult = {
-  /** Device code for polling. */
-  deviceCode: string;
-  /** Polling interval in seconds. */
-  interval: number;
-  /** Code for the user to enter. */
-  userCode: string;
-  /** URL to visit. */
-  verificationUri: string;
+export type AuthProvider_configParams = {
+  /** Provider name (e.g., 'openrouter', 'groq', 'nvidia', 'cerebras'). */
+  provider: string;
 };
 
-export type AuthPollParams = {
-  /** Device code from auth/login. */
-  deviceCode: string;
-  /** Polling interval in seconds. */
-  interval: number;
+export type AuthProvider_configResult = {
+  /** Provider configuration with endpoint URL and API key. */
+  config: { apiKey: string; endpoint: string };
+  /** The provider name. */
+  provider: string;
 };
 
-export type AuthPollResult = {
-  /** True once the user has authorized. */
-  authenticated: boolean;
+export type AuthProvidersParams = Record<string, never>;
+
+export type AuthProvidersResult = {
+  /** Map of provider name to environment variable name. */
+  providers: Record<string, unknown>;
 };
 
 export type AuthStatusParams = Record<string, never>;
 
 export type AuthStatusResult = {
-  /** Probe result: status is 'ready' or 'setup_required', provider is 'copilot' or null. */
-  auth: { provider: string; status: string; available_providers: string[] };
-  /** True if Copilot credentials are available. */
+  /** Probe result: status is 'ready' if API keys exist or 'setup_required' if not. provider is the first available provider. available_providers lists ALL providers with configured API keys. */
+  auth: { availableProviders: string[]; provider: string; status: string };
+  /** True if API key credentials are available. */
   authenticated: boolean;
 };
 
@@ -91,6 +85,8 @@ export type ModelSetResult = {
 export type ModelsListParams = Record<string, never>;
 
 export type ModelsListResult = {
+  /** List of API key providers that are configured (e.g., 'openrouter', 'groq', 'nvidia', 'cerebras'). */
+  availableProviders: string[];
   /** Array of {id, name, provider, supports_thinking}. */
   models: Record<string, unknown>[];
 };
@@ -104,12 +100,7 @@ export type OpalConfigGetResult = {
   /** Erlang distribution info if active (node name and cookie), or null if not distributed. */
   distribution: { cookie: string; node: string } | null;
   /** Current runtime feature flags. */
-  features: {
-    debug: boolean;
-    mcp: boolean;
-    skills: boolean;
-    subAgents: boolean;
-  };
+  features: { debug: boolean; mcp: boolean; skills: boolean; subAgents: boolean };
   /** Tool availability for the session. */
   tools: { all: string[]; disabled: string[]; enabled: string[] };
 };
@@ -118,12 +109,7 @@ export type OpalConfigSetParams = {
   /** Start or stop Erlang distribution. Pass {name, cookie?} to start, null to stop. */
   distribution?: { cookie?: string; name: string } | null;
   /** Feature flags to update. */
-  features?: {
-    debug: boolean;
-    mcp: boolean;
-    skills: boolean;
-    subAgents: boolean;
-  };
+  features?: { debug: boolean; mcp: boolean; skills: boolean; subAgents: boolean };
   /** Target session ID. */
   sessionId: string;
   /** Exact list of enabled tool names. */
@@ -134,12 +120,7 @@ export type OpalConfigSetResult = {
   /** Erlang distribution info if active (node name and cookie), or null if not distributed. */
   distribution: { cookie: string; node: string } | null;
   /** Current runtime feature flags. */
-  features: {
-    debug: boolean;
-    mcp: boolean;
-    skills: boolean;
-    subAgents: boolean;
-  };
+  features: { debug: boolean; mcp: boolean; skills: boolean; subAgents: boolean };
   /** Tool availability for the session. */
   tools: { all: string[]; disabled: string[]; enabled: string[] };
 };
@@ -155,6 +136,66 @@ export type OpalVersionResult = {
   protocolVersion: string;
   /** Opal server version (e.g. 0.1.10). */
   serverVersion: string;
+};
+
+export type OrchestratorAnalyzeParams = {
+  /** Task to analyze. Must include description. May include subtasks and dependencies. */
+  task: {
+    dependencies?: Record<string, unknown>[];
+    description: string;
+    subtasks?: Record<string, unknown>[];
+  };
+};
+
+export type OrchestratorAnalyzeResult = {
+  /** Recommended execution strategy. */
+  strategy: { agentCount: number; complexity: string; providers: string[]; topology: string };
+  /** Summary of the analyzed task. */
+  taskSummary: { description: string; hasDependencies: boolean; subtaskCount: number };
+};
+
+export type OrchestratorRunParams = {
+  /** Execution options: agent_count, topology (parallel|sequential|auto), timeout, providers, on_error, parallel_count. */
+  options?: {
+    agentCount?: number;
+    onError?: string;
+    parallelCount?: number;
+    providers?: string[];
+    timeout?: number;
+    topology?: string;
+  };
+  /** Task to execute. Must include description. May include subtasks, dependencies, and input data. */
+  task: {
+    dependencies?: Record<string, unknown>[];
+    description: string;
+    input?: Record<string, unknown>;
+    subtasks?: Record<string, unknown>[];
+  };
+};
+
+export type OrchestratorRunResult = {
+  /** Aggregated result from all agents. Contains outputs, success_count, error_count, and topology-specific data. */
+  result: Record<string, unknown>;
+  /** Session ID for this orchestrator run. */
+  sessionId: string;
+  /** The execution strategy determined by task analysis. */
+  strategy: { agentCount: number; complexity: string; providers: string[]; topology: string };
+};
+
+export type OrchestratorStatusParams = {
+  /** Session ID of the orchestrator run. */
+  sessionId: string;
+};
+
+export type OrchestratorStatusResult = {
+  /** Error message if status is error. */
+  error: string;
+  /** Progress information if running. */
+  progress: { completedAgents: number; currentAgent: string; totalAgents: number };
+  /** Aggregated result if completed. */
+  result: Record<string, unknown>;
+  /** One of: running, completed, error, not_found. */
+  status: string;
 };
 
 export type SessionBranchParams = {
@@ -204,12 +245,7 @@ export type SessionListResult = {
 
 export type SessionStartParams = {
   /** Boot-time feature toggles. */
-  features?: {
-    debug: boolean;
-    mcp: boolean;
-    skills: boolean;
-    subAgents: boolean;
-  };
+  features?: { debug: boolean; mcp: boolean; skills: boolean; subAgents: boolean };
   /** MCP server configurations. */
   mcpServers?: Record<string, unknown>[];
   /** Model to use. Defaults to config default. */
@@ -394,6 +430,59 @@ export type MessageStartEvent = {
   readonly type: "messageStart";
 };
 
+export type OrchestratorAgentEndEvent = {
+  /** Event type discriminator. */
+  readonly type: "orchestratorAgentEnd";
+  /** Unique agent identifier. */
+  agentId: string;
+  /** Agent output or error message. */
+  output: string;
+  /** One of: success, error. */
+  status: string;
+  /** Subtask that was executed. */
+  subtaskId: string;
+};
+
+export type OrchestratorAgentStartEvent = {
+  /** Event type discriminator. */
+  readonly type: "orchestratorAgentStart";
+  /** Unique agent identifier. */
+  agentId: string;
+  /** LLM provider assigned to this agent. */
+  provider: string;
+  /** Subtask being executed. */
+  subtaskId: string;
+};
+
+export type OrchestratorEndEvent = {
+  /** Event type discriminator. */
+  readonly type: "orchestratorEnd";
+  /** Number of failed agent executions. */
+  errorCount: number;
+  /** Aggregated result from all agents. */
+  result: Record<string, unknown>;
+  /** Number of successful agent executions. */
+  successCount: number;
+};
+
+export type OrchestratorProgressEvent = {
+  /** Event type discriminator. */
+  readonly type: "orchestratorProgress";
+  /** Number of completed agents. */
+  completed: number;
+  /** Current agent or subtask being executed. */
+  current: string;
+  /** Total number of agents. */
+  total: number;
+};
+
+export type OrchestratorStartEvent = {
+  /** Event type discriminator. */
+  readonly type: "orchestratorStart";
+  /** Execution strategy for this task. */
+  strategy: { agentCount: number; complexity: string; providers: string[]; topology: string };
+};
+
 export type SkillLoadedEvent = {
   /** Event type discriminator. */
   readonly type: "skillLoaded";
@@ -499,6 +588,11 @@ export type AgentEvent =
   | MessageDeltaEvent
   | MessageQueuedEvent
   | MessageStartEvent
+  | OrchestratorAgentEndEvent
+  | OrchestratorAgentStartEvent
+  | OrchestratorEndEvent
+  | OrchestratorProgressEvent
+  | OrchestratorStartEvent
   | SkillLoadedEvent
   | StatusUpdateEvent
   | SubAgentEventEvent
@@ -510,31 +604,14 @@ export type AgentEvent =
   | TurnEndEvent
   | UsageUpdateEvent;
 
-
-export type OrchestratorRunParams = {
-  /** Target session ID. */
-  sessionId: string;
-  /** The user's prompt text. */
-  text: string;
-  /** Run mode: "multi" for parallel multi-agent, "sequential" for pipeline. */
-  mode: "multi" | "sequential";
-  /** Number of agents to run in parallel (for multi mode). */
-  agentCount?: number;
-};
-
-export type OrchestratorRunResult = {
-  /** The orchestrator session ID. */
-  orchestratorSessionId: string;
-};
-
 // --- Method constants ---
 
 export const Methods = {
   AGENT_ABORT: "agent/abort" as const,
   AGENT_PROMPT: "agent/prompt" as const,
   AGENT_STATE: "agent/state" as const,
-  AUTH_LOGIN: "auth/login" as const,
-  AUTH_POLL: "auth/poll" as const,
+  AUTH_PROVIDER_CONFIG: "auth/provider_config" as const,
+  AUTH_PROVIDERS: "auth/providers" as const,
   AUTH_STATUS: "auth/status" as const,
   MODEL_SET: "model/set" as const,
   MODELS_LIST: "models/list" as const,
@@ -542,6 +619,9 @@ export const Methods = {
   OPAL_CONFIG_SET: "opal/config/set" as const,
   OPAL_PING: "opal/ping" as const,
   OPAL_VERSION: "opal/version" as const,
+  ORCHESTRATOR_ANALYZE: "orchestrator/analyze" as const,
+  ORCHESTRATOR_RUN: "orchestrator/run" as const,
+  ORCHESTRATOR_STATUS: "orchestrator/status" as const,
   SESSION_BRANCH: "session/branch" as const,
   SESSION_COMPACT: "session/compact" as const,
   SESSION_DELETE: "session/delete" as const,
@@ -555,7 +635,6 @@ export const Methods = {
   CLIENT_ASK_USER: "client/ask_user" as const,
   CLIENT_CONFIRM: "client/confirm" as const,
   CLIENT_INPUT: "client/input" as const,
-  ORCHESTRATOR_RUN: "orchestrator/run" as const,
 } as const;
 
 // --- Helper types ---
@@ -593,51 +672,29 @@ export interface MethodTypes {
   "agent/abort": { params: AgentAbortParams; result: AgentAbortResult };
   "agent/prompt": { params: AgentPromptParams; result: AgentPromptResult };
   "agent/state": { params: AgentStateParams; result: AgentStateResult };
-  "auth/login": { params: AuthLoginParams; result: AuthLoginResult };
-  "auth/poll": { params: AuthPollParams; result: AuthPollResult };
+  "auth/provider_config": { params: AuthProvider_configParams; result: AuthProvider_configResult };
+  "auth/providers": { params: AuthProvidersParams; result: AuthProvidersResult };
   "auth/status": { params: AuthStatusParams; result: AuthStatusResult };
   "model/set": { params: ModelSetParams; result: ModelSetResult };
   "models/list": { params: ModelsListParams; result: ModelsListResult };
-  "opal/config/get": {
-    params: OpalConfigGetParams;
-    result: OpalConfigGetResult;
-  };
-  "opal/config/set": {
-    params: OpalConfigSetParams;
-    result: OpalConfigSetResult;
-  };
+  "opal/config/get": { params: OpalConfigGetParams; result: OpalConfigGetResult };
+  "opal/config/set": { params: OpalConfigSetParams; result: OpalConfigSetResult };
   "opal/ping": { params: OpalPingParams; result: OpalPingResult };
   "opal/version": { params: OpalVersionParams; result: OpalVersionResult };
-  "session/branch": {
-    params: SessionBranchParams;
-    result: SessionBranchResult;
-  };
-  "session/compact": {
-    params: SessionCompactParams;
-    result: SessionCompactResult;
-  };
-  "session/delete": {
-    params: SessionDeleteParams;
-    result: SessionDeleteResult;
-  };
-  "session/history": {
-    params: SessionHistoryParams;
-    result: SessionHistoryResult;
-  };
+  "orchestrator/analyze": { params: OrchestratorAnalyzeParams; result: OrchestratorAnalyzeResult };
+  "orchestrator/run": { params: OrchestratorRunParams; result: OrchestratorRunResult };
+  "orchestrator/status": { params: OrchestratorStatusParams; result: OrchestratorStatusResult };
+  "session/branch": { params: SessionBranchParams; result: SessionBranchResult };
+  "session/compact": { params: SessionCompactParams; result: SessionCompactResult };
+  "session/delete": { params: SessionDeleteParams; result: SessionDeleteResult };
+  "session/history": { params: SessionHistoryParams; result: SessionHistoryResult };
   "session/list": { params: SessionListParams; result: SessionListResult };
   "session/start": { params: SessionStartParams; result: SessionStartResult };
   "settings/get": { params: SettingsGetParams; result: SettingsGetResult };
   "settings/save": { params: SettingsSaveParams; result: SettingsSaveResult };
   "tasks/list": { params: TasksListParams; result: TasksListResult };
   "thinking/set": { params: ThinkingSetParams; result: ThinkingSetResult };
-  "client/ask_user": {
-    params: ClientAsk_userParams;
-    result: ClientAsk_userResult;
-  };
-  "client/confirm": {
-    params: ClientConfirmParams;
-    result: ClientConfirmResult;
-  };
+  "client/ask_user": { params: ClientAsk_userParams; result: ClientAsk_userResult };
+  "client/confirm": { params: ClientConfirmParams; result: ClientConfirmResult };
   "client/input": { params: ClientInputParams; result: ClientInputResult };
-  "orchestrator/run": { params: OrchestratorRunParams; result: OrchestratorRunResult };
 }

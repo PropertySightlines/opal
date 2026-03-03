@@ -649,7 +649,7 @@ defmodule Opal.RPC.Protocol do
                "providers" => {:array, :string},
                "on_error" => :string,
                "parallel_count" => :integer
-             }},
+             }, MapSet.new([])},
           required: false,
           description:
             "Execution options: agent_count, topology (parallel|sequential|auto), timeout, providers, on_error, parallel_count."

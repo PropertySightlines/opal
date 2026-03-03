@@ -66,10 +66,13 @@ export async function executeMultiCommand(
   args: MultiCommandArgs,
 ): Promise<string | void> {
   const params: OrchestratorRunParams = {
-    sessionId: session.id,
-    text: args.prompt,
-    mode: args.mode,
-    ...(args.agentCount !== undefined ? { agentCount: args.agentCount } : {}),
+    task: {
+      description: args.prompt,
+    },
+    options: args.agentCount !== undefined ? {
+      agentCount: args.agentCount,
+      topology: args.mode === "multi" ? "parallel" : "sequential",
+    } : undefined,
   };
 
   try {
@@ -78,7 +81,7 @@ export async function executeMultiCommand(
     const modeLabel = args.mode === "multi" ? "Multi-agent" : "Sequential";
     const agentInfo = args.agentCount ? `${args.agentCount} agents` : "default agents";
     
-    return `${modeLabel} analysis started with ${agentInfo}. Session: ${result.orchestratorSessionId}`;
+    return `${modeLabel} analysis started with ${agentInfo}. Session: ${result.sessionId}`;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return `Multi-agent command failed: ${message}`;
@@ -96,10 +99,13 @@ export async function runMultiAgent(
   agentCount?: number,
 ): Promise<OrchestratorRunResult> {
   const params: OrchestratorRunParams = {
-    sessionId: session.id,
-    text: prompt,
-    mode: "multi",
-    ...(agentCount !== undefined ? { agentCount } : {}),
+    task: {
+      description: prompt,
+    },
+    options: agentCount !== undefined ? {
+      agentCount,
+      topology: "parallel",
+    } : undefined,
   };
 
   return session.request("orchestrator/run", params) as Promise<OrchestratorRunResult>;
@@ -113,9 +119,12 @@ export async function runSequential(
   prompt: string,
 ): Promise<OrchestratorRunResult> {
   const params: OrchestratorRunParams = {
-    sessionId: session.id,
-    text: prompt,
-    mode: "sequential",
+    task: {
+      description: prompt,
+    },
+    options: {
+      topology: "sequential",
+    },
   };
 
   return session.request("orchestrator/run", params) as Promise<OrchestratorRunResult>;
