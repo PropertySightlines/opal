@@ -13,7 +13,10 @@ defmodule Opal.Application do
       {Registry, keys: :unique, name: Opal.Registry},
       {Registry, keys: :duplicate, name: Opal.Events.Registry},
       Opal.Shell.Process,
-      {DynamicSupervisor, name: Opal.SessionSupervisor, strategy: :one_for_one}
+      {DynamicSupervisor, name: Opal.SessionSupervisor, strategy: :one_for_one},
+      # Agent Harness supervision tree (Phase 2)
+      # Provides rate limiting, topology management, and agent orchestration
+      AgentHarness.Supervisor
     ]
 
     # Only start stdio transport when enabled (default true for backward compat;

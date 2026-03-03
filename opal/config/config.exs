@@ -10,4 +10,7 @@ config :opal,
   # default_tools: [Opal.Tool.ReadFile, Opal.Tool.WriteFile, Opal.Tool.EditFile, Opal.Tool.Shell],
   copilot_domain: "github.com"
 
+# Agent Harness Rate Limit configuration
+import_config "agent_harness.exs"
+
 import_config "#{config_env()}.exs"

@@ -333,7 +333,8 @@ defmodule Opal.Agent do
     )
 
     case state.provider.stream(state.model, messages, tools,
-           tool_context: %{working_dir: state.working_dir}
+           tool_context: %{working_dir: state.working_dir},
+           config: state.config
          ) do
       {:ok, resp} ->
         Emitter.broadcast(state, {:request_end})

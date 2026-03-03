@@ -182,6 +182,10 @@ defmodule Opal.Config do
     * `:provider` — module implementing `Opal.Provider` for LLM communication.
       Default: `Opal.Provider.Copilot`.
 
+    * `:provider_config` — map of provider-specific configuration such as
+      `:api_key`, `:endpoint`, etc. Used by custom providers like
+      `Opal.Provider.OpenAICompatible`. Default: `%{}`.
+
     * `:auto_save` — when `true`, automatically persists the session to disk
       after the agent goes idle. Requires a `Session` process to be attached.
       Default: `true`.
@@ -224,6 +228,7 @@ defmodule Opal.Config do
           default_model: {atom(), String.t()},
           default_tools: [module()],
           provider: module(),
+          provider_config: map(),
           copilot_domain: String.t(),
           auto_save: boolean(),
           auto_title: boolean(),
@@ -247,6 +252,7 @@ defmodule Opal.Config do
               Opal.Tool.DebugState
             ],
             provider: Opal.Provider.Copilot,
+            provider_config: %{},
             auto_save: true,
             auto_title: true,
             features: %Opal.Config.Features{},
