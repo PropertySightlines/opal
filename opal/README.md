@@ -155,6 +155,81 @@ end
 })
 ```
 
+## Multi-Agent Quickstart
+
+Opal includes **AgentHarness**, a powerful multi-agent orchestration system for complex workflows.
+
+### Quick Example
+
+```elixir
+# Define a multi-agent task
+task = %{
+  description: "Research and summarize Elixir concurrency",
+  subtasks: [
+    %{id: "research", description: "Gather concurrency patterns"},
+    %{id: "analyze", description: "Analyze performance implications"},
+    %{id: "summarize", description: "Create summary document"}
+  ]
+}
+
+# Run with automatic topology selection
+{:ok, result} = AgentHarness.Orchestrator.run(task)
+
+# Access aggregated results
+result.outputs  # ["Research findings", "Analysis", "Summary"]
+```
+
+### Execution Modes
+
+**Parallel (independent tasks):**
+```elixir
+{:ok, result} = AgentHarness.Orchestrator.run(task,
+  topology: :parallel,
+  parallel_count: 3  # Max concurrent agents
+)
+```
+
+**Sequential (dependent tasks):**
+```elixir
+task = %{
+  description: "Code review pipeline",
+  subtasks: [
+    %{id: "security", description: "Security check"},
+    %{id: "performance", description: "Performance review", depends_on: ["security"]},
+    %{id: "summary", description: "Generate report", depends_on: ["performance"]}
+  ]
+}
+
+{:ok, result} = AgentHarness.Orchestrator.run(task, topology: :sequential)
+result.final_output  # Final report
+```
+
+### CLI Commands
+
+Use slash commands in the Opal CLI:
+
+```
+/multi Research Elixir patterns with 3 agents
+/sequential Run code review pipeline
+/analyze What's the best approach for this task?
+```
+
+### Provider Configuration
+
+Configure multiple LLM providers for load balancing:
+
+```bash
+# .env
+GROQ_API_KEY=gsk_...
+NVIDIA_API_KEY=nvapi-...
+CEREBRAS_API_KEY=csk_...
+OPENROUTER_API_KEY=sk-or-...
+```
+
+Agents are automatically distributed across available providers.
+
+📖 **Full Docs:** [docs/agent-harness/orchestrator.md](docs/agent-harness/orchestrator.md)
+
 ## Development
 
 ```sh

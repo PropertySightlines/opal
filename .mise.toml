@@ -42,6 +42,11 @@ description = "Run CLI tests"
 dir = "cli"
 run = "npx vitest run"
 
+[tasks."test:multi"]
+description = "Run multi-agent specific tests"
+dir = "opal"
+run = "mix test --only multi_agent"
+
 [tasks.test]
 description = "Run all tests"
 depends = ["test:*"]
@@ -89,17 +94,31 @@ dir = "cli"
 run = "pnpm install"
 
 [tasks.deps]
-description = "Install all dependencies"
+description = "Install all dependencies (Elixir + Node)"
 depends = ["deps:*"]
 
 [tasks.dev]
-description = "Build and launch the CLI"
+description = "Build and launch the CLI (auto-loads .env API keys)"
 depends = ["build"]
-run = "node cli/dist/bin.js --expose opal#opal"
+run = "bash -c 'set -a; [ -f .env ] && source .env; set +a; node cli/dist/bin.js --expose opal#opal'"
+
+[tasks."dev:multi"]
+description = "Launch CLI in dev mode with multi-agent features enabled"
+depends = ["build"]
+run = "bash -c 'set -a; [ -f .env ] && source .env; set +a; OPAL_MULTI_AGENT=true node cli/dist/bin.js --expose opal#opal'"
 
 [tasks.inspect]
 description = "Connect to a running dev instance via iex --remsh"
 run = "bash scripts/inspect.sh"
+
+[tasks."inspect:orchestrator"]
+description = "Connect to running instance with orchestrator"
+run = "bash scripts/inspect_orchestrator.sh"
+
+[tasks.orchestrator]
+description = "Run orchestrator demo/test"
+dir = "opal"
+run = "mix run -e Opal.OrchestratorDemo.run()"
 
 [tasks.release]
 description = "Bump versions, commit, and tag (e.g. mise run release -- patch)"

@@ -158,6 +158,43 @@ config :agent_harness,
 
 📖 **Full Docs:** [docs/agent-harness/topologies.md](docs/agent-harness/topologies.md)
 
+### Orchestrator (Multi-Agent Workflows)
+
+**Module:**
+- `AgentHarness.Orchestrator` — Intelligent task analysis and agent orchestration
+
+**Features:**
+- Automatic task complexity analysis
+- Dynamic topology selection (parallel vs sequential)
+- Agent spawning with provider load balancing
+- Result aggregation from multiple agents
+- Configurable execution strategies
+
+**Quick Example:**
+```elixir
+task = %{
+  description: "Research Elixir patterns",
+  subtasks: [
+    %{id: "research", description: "Find patterns"},
+    %{id: "analyze", description: "Analyze findings"},
+    %{id: "summarize", description: "Create summary"}
+  ]
+}
+
+# Auto-detects complexity and runs with appropriate topology
+{:ok, result} = AgentHarness.Orchestrator.run(task)
+
+# Or force specific topology
+{:ok, result} = AgentHarness.Orchestrator.run(task, topology: :parallel)
+```
+
+**CLI Commands:**
+- `/multi` — Run parallel multi-agent task
+- `/sequential` — Run sequential multi-agent task
+- `/analyze` — Analyze task without executing
+
+📖 **Full Docs:** [docs/agent-harness/orchestrator.md](docs/agent-harness/orchestrator.md)
+
 ### Agent Communication Layer
 
 **Modules:**
@@ -469,6 +506,8 @@ AgentHarness.Application.get_summary()
 
 - [Rate Limit Router Docs](docs/agent-harness/rate-limit-router.md)
 - [Topology Docs](docs/agent-harness/topologies.md)
+- [Orchestrator Docs](docs/agent-harness/orchestrator.md)
 - [Agent Communication Docs](docs/agent-harness/agent-communication.md)
+- [Monitoring Docs](docs/agent-harness/monitoring.md)
 - [Opal Documentation](README.md)
 - [OpenAI-Compatible Provider](docs/openai-compatible-provider.md)
