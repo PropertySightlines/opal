@@ -15,10 +15,7 @@ export interface ServerResolution {
 
 /**
  * Detect if we're running from the Opal monorepo source tree.
- * If so, use `mise exec` to launch the server with the correct tool versions.
- * 
- * NOTE: We use --no-start to avoid TTY conflicts. The RPC server will start
- * when stdin is piped by the StdioTransport.
+ * If so, use elixir directly (assuming mise has set up the environment).
  */
 function detectMonorepo(): ServerResolution | null {
   try {
@@ -31,8 +28,8 @@ function detectMonorepo(): ServerResolution | null {
       existsSync(join(repoRoot, "opal", "lib", "opal"))
     ) {
       return {
-        command: "bash",
-        args: ["-c", "set -a; [ -f .env ] && source .env; set +a; exec mise exec -- elixir -S mix run --no-halt"],
+        command: "elixir",
+        args: ["-S", "mix", "run", "--no-halt"],
         cwd: join(repoRoot, "opal"),
       };
     }
@@ -52,7 +49,7 @@ function getPackageVersion(): string {
 /**
  * Resolve the opal-server binary.
  *
- * 0. Monorepo dev mode via `mise exec` (when running from source tree)
+ * 0. Monorepo dev mode via elixir (when running from source tree)
  * 1. `opal-server` in PATH (user-installed or dev build)
  * 2. Extracted OTP release at ~/.opal/erts/<version>/
  */
