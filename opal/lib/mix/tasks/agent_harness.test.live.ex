@@ -73,14 +73,12 @@ defmodule Mix.Tasks.AgentHarness.Test.Live do
     IO.write("1. Rate Limit Tracker (Live) ... ")
 
     try do
-      tracker = AgentHarness.RateLimit.Tracker
-
       # Test Groq rate limit
       groq_key = System.get_env("GROQ_API_KEY")
 
       if groq_key && groq_key != "" do
         # Make a real request through the router
-        config = %{
+        _config = %{
           endpoint: "https://api.groq.com/openai/v1/chat/completions",
           api_key: groq_key
         }
@@ -125,7 +123,7 @@ defmodule Mix.Tasks.AgentHarness.Test.Live do
         start_time = System.monotonic_time(:millisecond)
 
         # Simulate sequential execution with delays
-        Enum.each(tasks, fn task ->
+        Enum.each(tasks, fn _task ->
           Process.sleep(10) # Simulate API call
           AgentHarness.RateLimit.Tracker.record_request(:groq, 50)
         end)
@@ -163,8 +161,8 @@ defmodule Mix.Tasks.AgentHarness.Test.Live do
         start_time = System.monotonic_time(:millisecond)
 
         # Run tasks in parallel (simulated)
-        parent = self()
-        tasks_ref = Task.async_stream(
+        _parent = self()
+        _tasks_ref = Task.async_stream(
           tasks,
           fn task ->
             Process.sleep(50) # Simulate API call

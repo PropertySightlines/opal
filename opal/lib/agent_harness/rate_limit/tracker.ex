@@ -192,6 +192,34 @@ defmodule AgentHarness.RateLimit.Tracker do
     GenServer.call(server, :get_limits)
   end
 
+  @doc """
+  Returns memory status for all provider queues.
+
+  Tracks memory usage per provider based on the number of entries
+  in the sliding window and estimated memory footprint.
+
+  ## Examples
+
+      iex> AgentHarness.RateLimit.Tracker.get_memory_status()
+      %{
+        providers: %{
+          groq: %{entries: 15, estimated_memory_kb: 12, window_ms: 60000},
+          cerebras: %{entries: 8, estimated_memory_kb: 6, window_ms: 60000}
+        },
+        total_entries: 23,
+        total_estimated_memory_kb: 18,
+        ets_table_info: %{size: 23, memory_kb: 64}
+      }
+
+  ## Returns
+
+    * Map with memory status per provider
+  """
+  @spec get_memory_status() :: map()
+  def get_memory_status(server \\ __MODULE__) do
+    GenServer.call(server, :get_memory_status)
+  end
+
   # ── GenServer Callbacks ────────────────────────────────────────────
 
   @impl true
@@ -270,6 +298,11 @@ defmodule AgentHarness.RateLimit.Tracker do
 
   def handle_call(:get_limits, _from, state) do
     {:reply, state.limits, state}
+  end
+
+  def handle_call(:get_memory_status, _from, state) do
+    status = do_get_memory_status(state)
+    {:reply, status, state}
   end
 
   @impl true
@@ -474,6 +507,47 @@ defmodule AgentHarness.RateLimit.Tracker do
 
   defp get_provider_limit(provider, state) do
     Map.get(state.limits, provider, %{rpm: 0, tpm: 0})
+  end
+
+  defp do_get_memory_status(state) do
+    now_ms = current_time_ms()
+    window_start = now_ms - state.window_ms
+
+    # Get ETS table info
+    ets_info = :ets.info(state.ets_table)
+    ets_size = ets_info[:size] || 0
+    ets_memory_kb = div(ets_info[:memory] || 0, 1024)
+
+    # Get memory status per provider
+    provider_stats =
+      Enum.map(state.limits, fn {provider, _limit} ->
+        {entry_count, total_tokens} = get_current_counts(provider, window_start, state.ets_table)
+        # Estimate memory per entry: ~800 bytes per {key, value} tuple
+        estimated_memory_kb = div(entry_count * 800, 1024)
+
+        {provider,
+         %{
+           entries: entry_count,
+           total_tokens: total_tokens,
+           estimated_memory_kb: max(1, estimated_memory_kb),
+           window_ms: state.window_ms
+         }}
+      end)
+      |> Map.new()
+
+    total_entries = Enum.reduce(provider_stats, 0, fn {_p, stats}, acc -> acc + stats.entries end)
+    total_memory_kb = Enum.reduce(provider_stats, 0, fn {_p, stats}, acc -> acc + stats.estimated_memory_kb end)
+
+    %{
+      providers: provider_stats,
+      total_entries: total_entries,
+      total_estimated_memory_kb: total_memory_kb,
+      ets_table_info: %{
+        size: ets_size,
+        memory_kb: ets_memory_kb,
+        name: state.table_name
+      }
+    }
   end
 
   defp current_time_ms do

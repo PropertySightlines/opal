@@ -176,17 +176,25 @@ defmodule AgentHarness.Application do
       #      rate_limit_tracker: :ok,
       #      rate_limit_router: :ok,
       #      task_supervisor: :ok,
-      #      dynamic_supervisor: :ok
+      #      dynamic_supervisor: :ok,
+      #      memory: %{total_mb: 256.5, processes_mb: 45.2, system_mb: 211.3}
       #    }
   """
-  @spec health_check() :: %{atom() => :ok | :error}
+  @spec health_check() :: %{atom() => :ok | :error} | map()
   def health_check do
+    memory = AgentHarness.Metrics.get_memory_usage()
+
     %{
       registry: check_process(AgentHarness.Registry),
       rate_limit_tracker: check_process(AgentHarness.RateLimit.Tracker),
       rate_limit_router: check_process(AgentHarness.RateLimit.Router),
       task_supervisor: check_process(AgentHarness.Topology.TaskSupervisor),
-      dynamic_supervisor: check_process(AgentHarness.DynamicSupervisor)
+      dynamic_supervisor: check_process(AgentHarness.DynamicSupervisor),
+      memory: %{
+        total_mb: memory.total,
+        processes_mb: memory.processes,
+        system_mb: memory.system
+      }
     }
   end
 
@@ -208,6 +216,37 @@ defmodule AgentHarness.Application do
       components: health_check(),
       rate_limits: get_rate_limit_config(),
       default_topology: get_default_topology()
+    }
+  end
+
+  @doc """
+  Aggregates all metrics for Agent Harness including memory, processes, and agent stats.
+
+  ## Examples
+
+      metrics = AgentHarness.Application.get_metrics()
+      # => %{
+      #      memory: %{total: 256.5, processes: 45.2, system: 211.3, ...},
+      #      process_count: 142,
+      #      system_info: %{erts_version: "14.2.1", schedulers: 8, ...},
+      #      agent_stats: %{total_agents: 5, agents: [...], total_children: 8},
+      #      rate_limit_memory: %{total_entries: 23, total_estimated_memory_kb: 18, ...},
+      #      health: %{registry: :ok, rate_limit_tracker: :ok, ...}
+      #    }
+
+  ## Returns
+
+    * Map with aggregated metrics from all sources
+  """
+  @spec get_metrics() :: map()
+  def get_metrics do
+    %{
+      memory: AgentHarness.Metrics.get_memory_usage(),
+      process_count: AgentHarness.Metrics.get_process_count(),
+      system_info: AgentHarness.Metrics.get_system_info(),
+      agent_stats: AgentHarness.Metrics.get_agent_stats(),
+      rate_limit_memory: AgentHarness.RateLimit.Tracker.get_memory_status(),
+      health: health_check()
     }
   end
 

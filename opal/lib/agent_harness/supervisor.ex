@@ -137,7 +137,9 @@ defmodule AgentHarness.Supervisor do
       # Task Supervisor for parallel topology execution
       # Used by AgentHarness.Topology.Parallel for concurrent tasks
       # Simple one_for_one strategy for task isolation
-      {Task.Supervisor, name: AgentHarness.Topology.TaskSupervisor, shutdown: 5_000},
+      {Task.Supervisor,
+       name: AgentHarness.Topology.TaskSupervisor,
+       start_child: {Task.Supervisor, :start_link, [[shutdown: 5_000]]}},
 
       # Dynamic Supervisor for agent processes
       # Spawns agent processes on demand
