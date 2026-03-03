@@ -60,10 +60,26 @@ defmodule Opal.RPC.Server do
 
   @impl true
   def init(_opts) do
+    # Open stdout port for writing JSON-RPC responses
     stdout = :erlang.open_port({:fd, 1, 1}, [:binary, :out])
+
+    # Open stdin port for reading JSON-RPC requests
+    # This will fail if stdin is connected to a TTY (interactive mode)
     parent = self()
-    {:ok, reader} = Task.start_link(fn -> stdin_loop(parent) end)
-    {:ok, %__MODULE__{reader: reader, stdout_port: stdout}}
+
+    case Task.start_link(fn -> stdin_loop(parent) end) do
+      {:ok, reader} ->
+        {:ok, %__MODULE__{reader: reader, stdout_port: stdout}}
+
+      {:error, reason} ->
+        Logger.error(
+          "RPC server failed to start stdin reader: #{inspect(reason)}. " <>
+            "This usually happens when stdin is connected to a TTY (terminal). " <>
+            "The stdio transport requires stdin to be a pipe."
+        )
+
+        {:stop, {:stdin_unavailable, reason}}
+    end
   end
 
   @impl true
@@ -71,6 +87,17 @@ defmodule Opal.RPC.Server do
     Logger.info("stdin closed, shutting down")
     System.stop(0)
     {:noreply, state}
+  end
+
+  def handle_info({:stdin_error, reason}, state) do
+    Logger.error(
+      "stdin error received: #{inspect(reason)}. " <>
+        "The RPC server cannot communicate via stdio. " <>
+        "This typically happens when the server is started in interactive mode (TTY) " <>
+        "instead of being launched by the CLI with piped stdin."
+    )
+
+    {:stop, {:stdin_error, reason}, state}
   end
 
   def handle_info({:stdin_line, line}, state), do: {:noreply, process_line(line, state)}
@@ -1106,8 +1133,21 @@ defmodule Opal.RPC.Server do
   # ── Stdin reader ───────────────────────────────────────────────────
 
   defp stdin_loop(parent) do
-    port = :erlang.open_port({:fd, 0, 0}, [:binary, :stream, :eof])
-    read_loop(port, parent, "")
+    case :erlang.open_port({:fd, 0, 0}, [:binary, :stream, :eof]) do
+      port when is_port(port) ->
+        read_loop(port, parent, "")
+
+      {:error, reason} ->
+        # Port failed to open - likely because stdin is a TTY or unavailable
+        Logger.error(
+          "stdin port failed to open: #{inspect(reason)}. " <>
+            "This happens when stdin is connected to a TTY (terminal) instead of a pipe."
+        )
+
+        # Send error to parent and exit
+        send(parent, {:stdin_error, reason})
+        exit({:stdin_unavailable, reason})
+    end
   end
 
   defp read_loop(port, parent, buf) do

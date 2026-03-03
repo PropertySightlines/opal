@@ -16,6 +16,9 @@ export interface ServerResolution {
 /**
  * Detect if we're running from the Opal monorepo source tree.
  * If so, use `mise exec` to launch the server with the correct tool versions.
+ * 
+ * NOTE: We use --no-start to avoid TTY conflicts. The RPC server will start
+ * when stdin is piped by the StdioTransport.
  */
 function detectMonorepo(): ServerResolution | null {
   try {
@@ -28,8 +31,8 @@ function detectMonorepo(): ServerResolution | null {
       existsSync(join(repoRoot, "opal", "lib", "opal"))
     ) {
       return {
-        command: "mise",
-        args: ["exec", "--", "elixir", "-S", "mix", "run", "--no-halt"],
+        command: "bash",
+        args: ["-c", "set -a; [ -f .env ] && source .env; set +a; exec mise exec -- elixir -S mix run --no-halt"],
         cwd: join(repoRoot, "opal"),
       };
     }

@@ -100,7 +100,12 @@ export type OpalConfigGetResult = {
   /** Erlang distribution info if active (node name and cookie), or null if not distributed. */
   distribution: { cookie: string; node: string } | null;
   /** Current runtime feature flags. */
-  features: { debug: boolean; mcp: boolean; skills: boolean; subAgents: boolean };
+  features: {
+    debug: boolean;
+    mcp: boolean;
+    skills: boolean;
+    subAgents: boolean;
+  };
   /** Tool availability for the session. */
   tools: { all: string[]; disabled: string[]; enabled: string[] };
 };
@@ -109,7 +114,12 @@ export type OpalConfigSetParams = {
   /** Start or stop Erlang distribution. Pass {name, cookie?} to start, null to stop. */
   distribution?: { cookie?: string; name: string } | null;
   /** Feature flags to update. */
-  features?: { debug: boolean; mcp: boolean; skills: boolean; subAgents: boolean };
+  features?: {
+    debug: boolean;
+    mcp: boolean;
+    skills: boolean;
+    subAgents: boolean;
+  };
   /** Target session ID. */
   sessionId: string;
   /** Exact list of enabled tool names. */
@@ -120,7 +130,12 @@ export type OpalConfigSetResult = {
   /** Erlang distribution info if active (node name and cookie), or null if not distributed. */
   distribution: { cookie: string; node: string } | null;
   /** Current runtime feature flags. */
-  features: { debug: boolean; mcp: boolean; skills: boolean; subAgents: boolean };
+  features: {
+    debug: boolean;
+    mcp: boolean;
+    skills: boolean;
+    subAgents: boolean;
+  };
   /** Tool availability for the session. */
   tools: { all: string[]; disabled: string[]; enabled: string[] };
 };
@@ -149,9 +164,18 @@ export type OrchestratorAnalyzeParams = {
 
 export type OrchestratorAnalyzeResult = {
   /** Recommended execution strategy. */
-  strategy: { agentCount: number; complexity: string; providers: string[]; topology: string };
+  strategy: {
+    agentCount: number;
+    complexity: string;
+    providers: string[];
+    topology: string;
+  };
   /** Summary of the analyzed task. */
-  taskSummary: { description: string; hasDependencies: boolean; subtaskCount: number };
+  taskSummary: {
+    description: string;
+    hasDependencies: boolean;
+    subtaskCount: number;
+  };
 };
 
 export type OrchestratorRunParams = {
@@ -179,7 +203,12 @@ export type OrchestratorRunResult = {
   /** Session ID for this orchestrator run. */
   sessionId: string;
   /** The execution strategy determined by task analysis. */
-  strategy: { agentCount: number; complexity: string; providers: string[]; topology: string };
+  strategy: {
+    agentCount: number;
+    complexity: string;
+    providers: string[];
+    topology: string;
+  };
 };
 
 export type OrchestratorStatusParams = {
@@ -191,7 +220,11 @@ export type OrchestratorStatusResult = {
   /** Error message if status is error. */
   error: string;
   /** Progress information if running. */
-  progress: { completedAgents: number; currentAgent: string; totalAgents: number };
+  progress: {
+    completedAgents: number;
+    currentAgent: string;
+    totalAgents: number;
+  };
   /** Aggregated result if completed. */
   result: Record<string, unknown>;
   /** One of: running, completed, error, not_found. */
@@ -245,7 +278,12 @@ export type SessionListResult = {
 
 export type SessionStartParams = {
   /** Boot-time feature toggles. */
-  features?: { debug: boolean; mcp: boolean; skills: boolean; subAgents: boolean };
+  features?: {
+    debug: boolean;
+    mcp: boolean;
+    skills: boolean;
+    subAgents: boolean;
+  };
   /** MCP server configurations. */
   mcpServers?: Record<string, unknown>[];
   /** Model to use. Defaults to config default. */
@@ -480,7 +518,12 @@ export type OrchestratorStartEvent = {
   /** Event type discriminator. */
   readonly type: "orchestratorStart";
   /** Execution strategy for this task. */
-  strategy: { agentCount: number; complexity: string; providers: string[]; topology: string };
+  strategy: {
+    agentCount: number;
+    complexity: string;
+    providers: string[];
+    topology: string;
+  };
 };
 
 export type SkillLoadedEvent = {
@@ -672,29 +715,68 @@ export interface MethodTypes {
   "agent/abort": { params: AgentAbortParams; result: AgentAbortResult };
   "agent/prompt": { params: AgentPromptParams; result: AgentPromptResult };
   "agent/state": { params: AgentStateParams; result: AgentStateResult };
-  "auth/provider_config": { params: AuthProvider_configParams; result: AuthProvider_configResult };
-  "auth/providers": { params: AuthProvidersParams; result: AuthProvidersResult };
+  "auth/provider_config": {
+    params: AuthProvider_configParams;
+    result: AuthProvider_configResult;
+  };
+  "auth/providers": {
+    params: AuthProvidersParams;
+    result: AuthProvidersResult;
+  };
   "auth/status": { params: AuthStatusParams; result: AuthStatusResult };
   "model/set": { params: ModelSetParams; result: ModelSetResult };
   "models/list": { params: ModelsListParams; result: ModelsListResult };
-  "opal/config/get": { params: OpalConfigGetParams; result: OpalConfigGetResult };
-  "opal/config/set": { params: OpalConfigSetParams; result: OpalConfigSetResult };
+  "opal/config/get": {
+    params: OpalConfigGetParams;
+    result: OpalConfigGetResult;
+  };
+  "opal/config/set": {
+    params: OpalConfigSetParams;
+    result: OpalConfigSetResult;
+  };
   "opal/ping": { params: OpalPingParams; result: OpalPingResult };
   "opal/version": { params: OpalVersionParams; result: OpalVersionResult };
-  "orchestrator/analyze": { params: OrchestratorAnalyzeParams; result: OrchestratorAnalyzeResult };
-  "orchestrator/run": { params: OrchestratorRunParams; result: OrchestratorRunResult };
-  "orchestrator/status": { params: OrchestratorStatusParams; result: OrchestratorStatusResult };
-  "session/branch": { params: SessionBranchParams; result: SessionBranchResult };
-  "session/compact": { params: SessionCompactParams; result: SessionCompactResult };
-  "session/delete": { params: SessionDeleteParams; result: SessionDeleteResult };
-  "session/history": { params: SessionHistoryParams; result: SessionHistoryResult };
+  "orchestrator/analyze": {
+    params: OrchestratorAnalyzeParams;
+    result: OrchestratorAnalyzeResult;
+  };
+  "orchestrator/run": {
+    params: OrchestratorRunParams;
+    result: OrchestratorRunResult;
+  };
+  "orchestrator/status": {
+    params: OrchestratorStatusParams;
+    result: OrchestratorStatusResult;
+  };
+  "session/branch": {
+    params: SessionBranchParams;
+    result: SessionBranchResult;
+  };
+  "session/compact": {
+    params: SessionCompactParams;
+    result: SessionCompactResult;
+  };
+  "session/delete": {
+    params: SessionDeleteParams;
+    result: SessionDeleteResult;
+  };
+  "session/history": {
+    params: SessionHistoryParams;
+    result: SessionHistoryResult;
+  };
   "session/list": { params: SessionListParams; result: SessionListResult };
   "session/start": { params: SessionStartParams; result: SessionStartResult };
   "settings/get": { params: SettingsGetParams; result: SettingsGetResult };
   "settings/save": { params: SettingsSaveParams; result: SettingsSaveResult };
   "tasks/list": { params: TasksListParams; result: TasksListResult };
   "thinking/set": { params: ThinkingSetParams; result: ThinkingSetResult };
-  "client/ask_user": { params: ClientAsk_userParams; result: ClientAsk_userResult };
-  "client/confirm": { params: ClientConfirmParams; result: ClientConfirmResult };
+  "client/ask_user": {
+    params: ClientAsk_userParams;
+    result: ClientAsk_userResult;
+  };
+  "client/confirm": {
+    params: ClientConfirmParams;
+    result: ClientConfirmResult;
+  };
   "client/input": { params: ClientInputParams; result: ClientInputResult };
 }
