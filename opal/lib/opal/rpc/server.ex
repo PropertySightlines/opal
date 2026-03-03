@@ -318,8 +318,13 @@ defmodule Opal.RPC.Server do
   # -- Models & thinking --
 
   def dispatch("models/list", _params) do
-    copilot = Opal.Auth.Copilot.list_models() |> Enum.map(&Map.put(&1, :provider, "copilot"))
-    {:ok, %{models: copilot}}
+    # Get models from LLMDB (these are Copilot model IDs that work with OpenAI-compatible APIs)
+    models = Opal.Provider.Registry.list_copilot() |> Enum.map(&Map.put(&1, :provider, "copilot"))
+    
+    # Get available API key providers
+    api_providers = Opal.Auth.api_key_providers_ready()
+    
+    {:ok, %{models: models, available_providers: api_providers}}
   end
 
   def dispatch("model/set", %{"session_id" => sid, "model_id" => model_id} = params) do
@@ -359,36 +364,20 @@ defmodule Opal.RPC.Server do
     {:ok, %{authenticated: result.status == "ready", auth: result}}
   end
 
-  def dispatch("auth/login", _params) do
-    case Opal.Auth.Copilot.start_device_flow() do
-      {:ok, flow} ->
-        {:ok, Map.take(flow, ["user_code", "verification_uri", "device_code", "interval"])}
+  def dispatch("auth/providers", _params) do
+    {:ok, %{providers: Opal.Auth.api_key_providers()}}
+  end
 
-      {:error, reason} ->
-        error(:internal_error, "Login flow failed", inspect(reason))
+  def dispatch("auth/provider_config", %{"provider" => provider}) do
+    case Opal.Auth.get_provider_config(provider) do
+      {:ok, config} -> {:ok, %{provider: provider, config: config}}
+      {:error, :not_configured} -> error(:invalid_params, "API key not configured for provider", provider)
+      {:error, :unknown_provider} -> error(:invalid_params, "Unknown provider", provider)
     end
   end
 
-  def dispatch("auth/poll", %{"device_code" => code, "interval" => interval}) do
-    domain = Opal.Config.new().copilot_domain
-
-    with {:ok, github_token} <- Opal.Auth.Copilot.poll_for_token(domain, code, interval * 1_000),
-         {:ok, copilot} <- Opal.Auth.Copilot.exchange_copilot_token(github_token) do
-      Opal.Auth.Copilot.save_token(%{
-        "github_token" => github_token,
-        "copilot_token" => copilot["token"],
-        "expires_at" => copilot["expires_at"],
-        "base_url" => Opal.Auth.Copilot.base_url(copilot)
-      })
-
-      {:ok, %{authenticated: true}}
-    else
-      {:error, reason} -> error(:internal_error, "Auth polling failed", inspect(reason))
-    end
-  end
-
-  def dispatch("auth/poll", _),
-    do: error(:invalid_params, "Missing required params: device_code, interval")
+  def dispatch("auth/provider_config", _),
+    do: error(:invalid_params, "Missing required param: provider")
 
   # -- Tasks --
 
@@ -402,6 +391,78 @@ defmodule Opal.RPC.Server do
   end
 
   def dispatch("tasks/list", _),
+    do: error(:invalid_params, "Missing required param: session_id")
+
+  # -- Orchestrator --
+
+  def dispatch("orchestrator/run", %{"task" => task} = params) do
+    task_map = decode_task(task)
+    options = decode_orchestrator_options(Map.get(params, "options", %{}))
+    session_id = generate_orchestrator_session_id()
+
+    # Subscribe to events for this session
+    Opal.Events.subscribe(session_id)
+
+    # Broadcast orchestrator start event
+    strategy = AgentHarness.Orchestrator.analyze_task(task_map)
+    Opal.Events.broadcast(session_id, {:orchestrator_start, session_id, strategy})
+
+    # Run orchestrator with event streaming
+    run_opts = build_orchestrator_run_opts(options, session_id)
+    result = run_orchestrator_with_streaming(task_map, strategy, run_opts, session_id)
+
+    # Unsubscribe from events
+    Opal.Events.unsubscribe(session_id)
+
+    case result do
+      {:ok, aggregated} ->
+        {:ok,
+         %{
+           session_id: session_id,
+           strategy: serialize_strategy(strategy),
+           result: aggregated
+         }}
+
+      {:error, reason} ->
+        error(:internal_error, "Orchestrator execution failed", inspect(reason))
+    end
+  end
+
+  def dispatch("orchestrator/run", _),
+    do: error(:invalid_params, "Missing required param: task")
+
+  def dispatch("orchestrator/analyze", %{"task" => task}) do
+    task_map = decode_task(task)
+    strategy = AgentHarness.Orchestrator.analyze_task(task_map)
+
+    subtasks = Map.get(task_map, :subtasks, Map.get(task_map, "subtasks", []))
+    has_deps = has_dependencies?(task_map, subtasks)
+
+    {:ok,
+     %{
+       strategy: serialize_strategy(strategy),
+       task_summary: %{
+         subtask_count: length(subtasks),
+         has_dependencies: has_deps,
+         description: Map.get(task_map, :description, Map.get(task_map, "description", ""))
+       }
+     }}
+  end
+
+  def dispatch("orchestrator/analyze", _),
+    do: error(:invalid_params, "Missing required param: task")
+
+  def dispatch("orchestrator/status", %{"session_id" => session_id}) do
+    case get_orchestrator_status(session_id) do
+      {:ok, status_data} ->
+        {:ok, status_data}
+
+      :not_found ->
+        error(:invalid_params, "Orchestrator session not found", session_id)
+    end
+  end
+
+  def dispatch("orchestrator/status", _),
     do: error(:invalid_params, "Missing required param: session_id")
 
   # -- Settings --
@@ -499,11 +560,14 @@ defmodule Opal.RPC.Server do
 
   defp decode_session_opts(params) when is_map(params) do
     with {:ok, model} <- parse_model(params["model"]),
-         {:ok, features} <- parse_features(params["features"]) do
+         {:ok, features} <- parse_features(params["features"]),
+         {:ok, provider_config} <- resolve_provider_config(params) do
       opts =
         %{working_dir: params["working_dir"] || File.cwd!()}
         |> put_if_present(:model, model)
         |> put_if_present(:features, normalize_features(features))
+        |> put_if_present(:provider_config, provider_config)
+        |> put_if_present(:provider, provider_config[:provider])
         |> put_string(params, "system_prompt", :system_prompt)
         |> put_flag(params, "session", :session)
         |> put_string(params, "session_id", :session_id)
@@ -516,6 +580,54 @@ defmodule Opal.RPC.Server do
   end
 
   defp decode_session_opts(_), do: error(:invalid_params, "params must be an object")
+
+  @doc false
+  @spec resolve_provider_config(map()) :: {:ok, keyword()} | {:error, integer(), String.t(), term()}
+  defp resolve_provider_config(params) do
+    # If provider is explicitly specified in params, use it
+    case params["provider"] do
+      "openai_compatible" ->
+        # Use the first available API key provider
+        case Opal.Auth.api_key_providers_ready() do
+          [] ->
+            # No API keys configured, fall back to Copilot
+            {:ok, [provider: Opal.Provider.Copilot, provider_config: %{}]}
+
+          [first_provider | _] ->
+            case Opal.Auth.get_provider_config(first_provider) do
+              {:ok, config} ->
+                {:ok, [provider: Opal.Provider.OpenAICompatible, provider_config: config]}
+
+              {:error, reason} ->
+                Logger.warning("Could not get config for provider #{first_provider}: #{inspect(reason)}")
+                {:ok, [provider: Opal.Provider.Copilot, provider_config: %{}]}
+            end
+        end
+
+      nil ->
+        # Auto-detect: if API keys are present, use OpenAICompatible with first available
+        case Opal.Auth.api_key_providers_ready() do
+          [] ->
+            # No API keys, use Copilot
+            {:ok, [provider: Opal.Provider.Copilot, provider_config: %{}]}
+
+          [first_provider | _] ->
+            case Opal.Auth.get_provider_config(first_provider) do
+              {:ok, config} ->
+                {:ok, [provider: Opal.Provider.OpenAICompatible, provider_config: config]}
+
+              {:error, reason} ->
+                Logger.warning("Could not get config for provider #{first_provider}: #{inspect(reason)}")
+                {:ok, [provider: Opal.Provider.Copilot, provider_config: %{}]}
+            end
+        end
+
+      other ->
+        # Unknown provider, fall back to Copilot
+        Logger.warning("Unknown provider specified: #{inspect(other)}, falling back to Copilot")
+        {:ok, [provider: Opal.Provider.Copilot, provider_config: %{}]}
+    end
+  end
 
   defp parse_model(nil), do: {:ok, nil}
 
@@ -708,6 +820,56 @@ defmodule Opal.RPC.Server do
   defp serialize_event({:agent_end, _messages}), do: {"agent_end", %{}}
   defp serialize_event({:agent_end, _messages, usage}), do: {"agent_end", %{usage: usage}}
 
+  defp serialize_event({:orchestrator_start, session_id, strategy}) do
+    {"orchestrator_start",
+     %{
+       session_id: session_id,
+       strategy: %{
+         complexity: Atom.to_string(strategy.complexity),
+         topology: Atom.to_string(strategy.topology),
+         agent_count: strategy.agent_count,
+         providers: Enum.map(strategy.providers, &Atom.to_string/1)
+       }
+     }}
+  end
+
+  defp serialize_event({:orchestrator_agent_start, agent_id, subtask_id, provider}) do
+    {"orchestrator_agent_start",
+     %{
+       agent_id: agent_id,
+       subtask_id: subtask_id,
+       provider: Atom.to_string(provider)
+     }}
+  end
+
+  defp serialize_event({:orchestrator_agent_end, agent_id, subtask_id, status, output}) do
+    {"orchestrator_agent_end",
+     %{
+       agent_id: agent_id,
+       subtask_id: subtask_id,
+       status: Atom.to_string(status),
+       output: output
+     }}
+  end
+
+  defp serialize_event({:orchestrator_progress, completed, total, current}) do
+    {"orchestrator_progress",
+     %{
+       completed: completed,
+       total: total,
+       current: current
+     }}
+  end
+
+  defp serialize_event({:orchestrator_end, success_count, error_count, result}) do
+    {"orchestrator_end",
+     %{
+       success_count: success_count,
+       error_count: error_count,
+       result: result
+     }}
+  end
+
   defp serialize_event({:turn_end, message, _results}) do
     content =
       case message do
@@ -758,6 +920,188 @@ defmodule Opal.RPC.Server do
   defp format_tool_result({:ok, output}), do: %{ok: true, output: output}
   defp format_tool_result({:error, reason}), do: %{ok: false, error: inspect(reason)}
   defp format_tool_result(other), do: %{ok: true, output: inspect(other)}
+
+  # ── Orchestrator helpers ─────────────────────────────────────────────
+
+  defp decode_task(task) when is_map(task) do
+    task
+    |> Map.new(fn {k, v} -> {normalize_key(k), v} end)
+    |> Map.update(:subtasks, [], fn subtasks ->
+      Enum.map(subtasks, fn st ->
+        st |> Map.new(fn {k, v} -> {normalize_key(k), v} end)
+      end)
+    end)
+  end
+
+  defp decode_task(task) when is_binary(task) do
+    case Jason.decode(task) do
+      {:ok, decoded} -> decode_task(decoded)
+      {:error, _} -> %{description: task, subtasks: []}
+    end
+  end
+
+  defp normalize_key(k) when is_binary(k), do: String.to_atom(k)
+  defp normalize_key(k) when is_atom(k), do: k
+
+  defp decode_orchestrator_options(opts) when is_map(opts) do
+    opts = Map.new(opts, fn {k, v} -> {normalize_key(k), v} end)
+
+    opts
+    |> Map.take([:agent_count, :topology, :timeout, :providers, :on_error, :parallel_count])
+    |> Enum.reject(fn {_, v} -> is_nil(v) end)
+  end
+
+  defp generate_orchestrator_session_id do
+    "orch-" <> Base.encode16(:crypto.strong_rand_bytes(8), case: :lower)
+  end
+
+  defp build_orchestrator_run_opts(options, _session_id) do
+    default_opts = [
+      timeout: 60_000,
+      on_error: :collect
+    ]
+
+    default_opts ++ options
+  end
+
+  defp run_orchestrator_with_streaming(task, strategy, opts, session_id) do
+    # Store initial state for status queries
+    store_orchestrator_state(session_id, %{
+      status: :running,
+      strategy: strategy,
+      started_at: System.system_time(:millisecond),
+      progress: %{completed_agents: 0, total_agents: strategy.agent_count, current_agent: "analyzing"}
+    })
+
+    # Broadcast agent start event for the main task
+    Opal.Events.broadcast(session_id, {:orchestrator_agent_start, "orchestrator", "main", :local})
+
+    try do
+      # Run the orchestrator
+      result = AgentHarness.Orchestrator.run(task, opts)
+
+      # Update progress to completed
+      Opal.Events.broadcast(session_id, {:orchestrator_progress, strategy.agent_count, strategy.agent_count, "completed"})
+
+      case result do
+        {:ok, aggregated} ->
+          # Broadcast agent end event
+          success_count = Map.get(aggregated, :success_count, 0)
+          Opal.Events.broadcast(session_id, {:orchestrator_agent_end, "orchestrator", "main", :success, "Task completed"})
+
+          # Store completed state
+          store_orchestrator_state(session_id, %{
+            status: :completed,
+            strategy: strategy,
+            result: aggregated,
+            completed_at: System.system_time(:millisecond),
+            progress: %{completed_agents: success_count, total_agents: strategy.agent_count, current_agent: nil}
+          })
+
+          # Broadcast end event
+          error_count = Map.get(aggregated, :error_count, 0)
+          Opal.Events.broadcast(session_id, {:orchestrator_end, success_count, error_count, aggregated})
+
+          {:ok, aggregated}
+
+        {:error, reason} ->
+          # Broadcast agent end event with error
+          Opal.Events.broadcast(session_id, {:orchestrator_agent_end, "orchestrator", "main", :error, inspect(reason)})
+
+          # Store error state
+          store_orchestrator_state(session_id, %{
+            status: :error,
+            strategy: strategy,
+            error: reason,
+            completed_at: System.system_time(:millisecond),
+            progress: %{completed_agents: 0, total_agents: strategy.agent_count, current_agent: nil}
+          })
+
+          {:error, reason}
+      end
+    rescue
+      e ->
+        error_msg = Exception.message(e)
+        Opal.Events.broadcast(session_id, {:orchestrator_agent_end, "orchestrator", "main", :error, error_msg})
+
+        store_orchestrator_state(session_id, %{
+          status: :error,
+          strategy: strategy,
+          error: e,
+          completed_at: System.system_time(:millisecond),
+          progress: %{completed_agents: 0, total_agents: strategy.agent_count, current_agent: nil}
+        })
+
+        {:error, e}
+    end
+  end
+
+  defp serialize_strategy(strategy) do
+    %{
+      complexity: Atom.to_string(strategy.complexity),
+      topology: Atom.to_string(strategy.topology),
+      agent_count: strategy.agent_count,
+      providers: Enum.map(strategy.providers, &Atom.to_string/1)
+    }
+  end
+
+  defp has_dependencies?(task, subtasks) do
+    dependencies = Map.get(task, :dependencies, Map.get(task, "dependencies", []))
+
+    if Enum.empty?(dependencies) do
+      Enum.any?(subtasks, fn subtask ->
+        Map.has_key?(subtask, :depends_on) or Map.has_key?(subtask, "depends_on")
+      end)
+    else
+      true
+    end
+  end
+
+  defp store_orchestrator_state(session_id, state) do
+    # Store in ETS for quick status lookups
+    :orchestrator_state = :orchestrator_state
+    case :ets.info(:orchestrator_state) do
+      :undefined ->
+        :ets.new(:orchestrator_state, [:named_table, :public, :set])
+        :ets.insert(:orchestrator_state, {session_id, state})
+
+      _ ->
+        :ets.insert(:orchestrator_state, {session_id, state})
+    end
+  end
+
+  defp get_orchestrator_status(session_id) do
+    case :ets.info(:orchestrator_state) do
+      :undefined ->
+        :not_found
+
+      _ ->
+        case :ets.lookup(:orchestrator_state, session_id) do
+          [{^session_id, state}] ->
+            status_data = %{
+              status: Atom.to_string(state.status),
+              progress: state.progress
+            }
+
+            status_data =
+              case state do
+                %{result: result} when not is_nil(result) ->
+                  Map.put(status_data, :result, result)
+
+                %{error: error} when not is_nil(error) ->
+                  Map.put(status_data, :error, inspect(error))
+
+                _ ->
+                  status_data
+              end
+
+            {:ok, status_data}
+
+          [] ->
+            :not_found
+        end
+    end
+  end
 
   # ── Stdin reader ───────────────────────────────────────────────────
 

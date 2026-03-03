@@ -281,13 +281,18 @@ defmodule Opal.RPC.Protocol do
     %{
       method: "models/list",
       direction: :client_to_server,
-      description: "List available LLM models from Copilot.",
+      description: "List available LLM models and configured API key providers.",
       params: [],
       result: [
         %{
           name: "models",
           type: {:array, :object},
           description: "Array of {id, name, provider, supports_thinking}."
+        },
+        %{
+          name: "available_providers",
+          type: {:array, :string},
+          description: "List of API key providers that are configured (e.g., 'openrouter', 'groq', 'nvidia', 'cerebras')."
         }
       ]
     },
@@ -333,13 +338,13 @@ defmodule Opal.RPC.Protocol do
     %{
       method: "auth/status",
       direction: :client_to_server,
-      description: "Probe Copilot credentials and return auth readiness.",
+      description: "Probe for API key credentials and return auth readiness. If any API keys are configured in environment variables, the system is auto-authenticated.",
       params: [],
       result: [
         %{
           name: "authenticated",
           type: :boolean,
-          description: "True if Copilot credentials are available."
+          description: "True if API key credentials are available."
         },
         %{
           name: "auth",
@@ -347,48 +352,54 @@ defmodule Opal.RPC.Protocol do
             {:object,
              %{
                "status" => :string,
-               "provider" => :string
+               "provider" => :string,
+               "available_providers" => {:array, :string}
              }},
           description:
-            "Probe result: status is 'ready' or 'setup_required', provider is 'copilot' or null."
+            "Probe result: status is 'ready' if API keys exist or 'setup_required' if not. provider is the first available provider. available_providers lists ALL providers with configured API keys."
         }
       ]
     },
     %{
-      method: "auth/login",
+      method: "auth/providers",
       direction: :client_to_server,
-      description: "Start the device-code OAuth login flow.",
+      description: "List all supported API key providers and their environment variable names.",
       params: [],
       result: [
-        %{name: "user_code", type: :string, description: "Code for the user to enter."},
-        %{name: "verification_uri", type: :string, description: "URL to visit."},
-        %{name: "device_code", type: :string, description: "Device code for polling."},
-        %{name: "interval", type: :integer, description: "Polling interval in seconds."}
+        %{
+          name: "providers",
+          type: {:map, :string, :string},
+          description: "Map of provider name to environment variable name."
+        }
       ]
     },
     %{
-      method: "auth/poll",
+      method: "auth/provider_config",
       direction: :client_to_server,
-      description: "Poll for device-code authorization and exchange for a Copilot token.",
+      description: "Get the API endpoint and key configuration for a specific provider.",
       params: [
         %{
-          name: "device_code",
+          name: "provider",
           type: :string,
           required: true,
-          description: "Device code from auth/login."
-        },
-        %{
-          name: "interval",
-          type: :integer,
-          required: true,
-          description: "Polling interval in seconds."
+          description: "Provider name (e.g., 'openrouter', 'groq', 'nvidia', 'cerebras')."
         }
       ],
       result: [
         %{
-          name: "authenticated",
-          type: :boolean,
-          description: "True once the user has authorized."
+          name: "provider",
+          type: :string,
+          description: "The provider name."
+        },
+        %{
+          name: "config",
+          type:
+            {:object,
+             %{
+               "endpoint" => :string,
+               "api_key" => :string
+             }},
+          description: "Provider configuration with endpoint URL and API key."
         }
       ]
     },
@@ -606,6 +617,154 @@ defmodule Opal.RPC.Protocol do
       ],
       result: [
         %{name: "ok", type: :boolean, description: "True if deleted successfully."}
+      ]
+    },
+    %{
+      method: "orchestrator/run",
+      direction: :client_to_server,
+      description: "Run the orchestrator with a task description. Streams events during execution and returns aggregated results.",
+      params: [
+        %{
+          name: "task",
+          type:
+            {:object,
+             %{
+               "description" => :string,
+               "subtasks" => {:array, :object},
+               "dependencies" => {:array, :object},
+               "input" => :object
+             }, MapSet.new(["description"])},
+          required: true,
+          description:
+            "Task to execute. Must include description. May include subtasks, dependencies, and input data."
+        },
+        %{
+          name: "options",
+          type:
+            {:object,
+             %{
+               "agent_count" => :integer,
+               "topology" => :string,
+               "timeout" => :integer,
+               "providers" => {:array, :string},
+               "on_error" => :string,
+               "parallel_count" => :integer
+             }},
+          required: false,
+          description:
+            "Execution options: agent_count, topology (parallel|sequential|auto), timeout, providers, on_error, parallel_count."
+        }
+      ],
+      result: [
+        %{
+          name: "session_id",
+          type: :string,
+          description: "Session ID for this orchestrator run."
+        },
+        %{
+          name: "strategy",
+          type:
+            {:object,
+             %{
+               "complexity" => :string,
+               "topology" => :string,
+               "agent_count" => :integer,
+               "providers" => {:array, :string}
+             }},
+          description: "The execution strategy determined by task analysis."
+        },
+        %{
+          name: "result",
+          type: :object,
+          description:
+            "Aggregated result from all agents. Contains outputs, success_count, error_count, and topology-specific data."
+        }
+      ]
+    },
+    %{
+      method: "orchestrator/analyze",
+      direction: :client_to_server,
+      description: "Analyze a task without executing it. Returns the recommended execution strategy.",
+      params: [
+        %{
+          name: "task",
+          type:
+            {:object,
+             %{
+               "description" => :string,
+               "subtasks" => {:array, :object},
+               "dependencies" => {:array, :object}
+             }, MapSet.new(["description"])},
+          required: true,
+          description:
+            "Task to analyze. Must include description. May include subtasks and dependencies."
+        }
+      ],
+      result: [
+        %{
+          name: "strategy",
+          type:
+            {:object,
+             %{
+               "complexity" => :string,
+               "topology" => :string,
+               "agent_count" => :integer,
+               "providers" => {:array, :string}
+             }},
+          description: "Recommended execution strategy."
+        },
+        %{
+          name: "task_summary",
+          type:
+            {:object,
+             %{
+               "subtask_count" => :integer,
+               "has_dependencies" => :boolean,
+               "description" => :string
+             }},
+          description: "Summary of the analyzed task."
+        }
+      ]
+    },
+    %{
+      method: "orchestrator/status",
+      direction: :client_to_server,
+      description: "Get the execution status of a running or completed orchestrator task.",
+      params: [
+        %{
+          name: "session_id",
+          type: :string,
+          required: true,
+          description: "Session ID of the orchestrator run."
+        }
+      ],
+      result: [
+        %{
+          name: "status",
+          type: :string,
+          description: "One of: running, completed, error, not_found."
+        },
+        %{
+          name: "progress",
+          type:
+            {:object,
+             %{
+               "completed_agents" => :integer,
+               "total_agents" => :integer,
+               "current_agent" => :string
+             }},
+          description: "Progress information if running."
+        },
+        %{
+          name: "result",
+          type: :object,
+          description: "Aggregated result if completed."
+        },
+        %{
+          name: "error",
+          type: :string,
+          description: "Error message if status is error."
+        }
       ]
     }
   ]
@@ -881,6 +1040,94 @@ defmodule Opal.RPC.Protocol do
       description:
         "Agent process crashed and was restarted by the supervisor. Conversation history was reloaded from the surviving session.",
       fields: []
+    },
+    %{
+      type: "orchestrator_start",
+      description: "Orchestrator has started executing a task.",
+      fields: [
+        %{
+          name: "session_id",
+          type: :string,
+          description: "Session ID for this orchestrator run."
+        },
+        %{
+          name: "strategy",
+          type:
+            {:object,
+             %{
+               "complexity" => :string,
+               "topology" => :string,
+               "agent_count" => :integer,
+               "providers" => {:array, :string}
+             }},
+          description: "Execution strategy for this task."
+        }
+      ]
+    },
+    %{
+      type: "orchestrator_agent_start",
+      description: "An agent has started executing a subtask.",
+      fields: [
+        %{name: "agent_id", type: :string, description: "Unique agent identifier."},
+        %{name: "subtask_id", type: :string, description: "Subtask being executed."},
+        %{name: "provider", type: :string, description: "LLM provider assigned to this agent."}
+      ]
+    },
+    %{
+      type: "orchestrator_agent_end",
+      description: "An agent has finished executing a subtask.",
+      fields: [
+        %{name: "agent_id", type: :string, description: "Unique agent identifier."},
+        %{name: "subtask_id", type: :string, description: "Subtask that was executed."},
+        %{name: "status", type: :string, description: "One of: success, error."},
+        %{
+          name: "output",
+          type: :string,
+          description: "Agent output or error message."
+        }
+      ]
+    },
+    %{
+      type: "orchestrator_progress",
+      description: "Progress update during orchestrator execution.",
+      fields: [
+        %{
+          name: "completed",
+          type: :integer,
+          description: "Number of completed agents."
+        },
+        %{
+          name: "total",
+          type: :integer,
+          description: "Total number of agents."
+        },
+        %{
+          name: "current",
+          type: :string,
+          description: "Current agent or subtask being executed."
+        }
+      ]
+    },
+    %{
+      type: "orchestrator_end",
+      description: "Orchestrator has finished executing all agents.",
+      fields: [
+        %{
+          name: "success_count",
+          type: :integer,
+          description: "Number of successful agent executions."
+        },
+        %{
+          name: "error_count",
+          type: :integer,
+          description: "Number of failed agent executions."
+        },
+        %{
+          name: "result",
+          type: :object,
+          description: "Aggregated result from all agents."
+        }
+      ]
     }
   ]
 

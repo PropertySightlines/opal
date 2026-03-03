@@ -76,6 +76,56 @@ export function useOpalCommands(
           setOverlay("opal");
         },
       },
+      multi: {
+        description: "Run multi-agent analysis",
+        args: "<prompt> [--agents N]",
+        execute: async ({ arg }) => {
+          if (!session) return "No active session.";
+          
+          const { parseMultiCommand, executeMultiCommand } = await import("../commands/multi-command.js");
+          const args = parseMultiCommand(arg, "multi");
+          
+          if (!args) {
+            return "Usage: /multi <prompt> [--agents N]";
+          }
+          
+          pushStatus(`Starting multi-agent analysis with ${args.agentCount ?? 3} agents...`, "info");
+          
+          try {
+            const result = await executeMultiCommand(session, args);
+            if (result) {
+              pushStatus(result, "success");
+            }
+          } catch (e: unknown) {
+            pushStatus(`Multi-agent failed: ${e instanceof Error ? e.message : String(e)}`, "error");
+          }
+        },
+      },
+      sequential: {
+        description: "Run sequential pipeline analysis",
+        args: "<prompt>",
+        execute: async ({ arg }) => {
+          if (!session) return "No active session.";
+          
+          const { parseMultiCommand, executeMultiCommand } = await import("../commands/multi-command.js");
+          const args = parseMultiCommand(arg, "sequential");
+          
+          if (!args) {
+            return "Usage: /sequential <prompt>";
+          }
+          
+          pushStatus("Starting sequential pipeline analysis...", "info");
+          
+          try {
+            const result = await executeMultiCommand(session, args);
+            if (result) {
+              pushStatus(result, "success");
+            }
+          } catch (e: unknown) {
+            pushStatus(`Sequential pipeline failed: ${e instanceof Error ? e.message : String(e)}`, "error");
+          }
+        },
+      },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [session],

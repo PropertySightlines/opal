@@ -171,6 +171,22 @@ export class Session {
   }
 
   /**
+   * Send a generic JSON-RPC request to the server.
+   *
+   * @param method - The RPC method name (e.g., "orchestrator/run")
+   * @param params - The method parameters
+   * @param timeoutMs - Optional timeout in milliseconds
+   * @returns The method result
+   */
+  async request<M extends string>(
+    method: M,
+    params: Record<string, unknown>,
+    timeoutMs?: number,
+  ): Promise<unknown> {
+    return this.#client.request(method as any, params as any, timeoutMs);
+  }
+
+  /**
    * Send a prompt and stream back events.
    *
    * Convenience wrapper around {@link send} — the returned
