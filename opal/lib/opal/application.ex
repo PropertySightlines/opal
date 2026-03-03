@@ -13,12 +13,11 @@ defmodule Opal.Application do
       {Registry, keys: :unique, name: Opal.Registry},
       {Registry, keys: :duplicate, name: Opal.Events.Registry},
       Opal.Shell.Process,
-      {DynamicSupervisor, name: Opal.SessionSupervisor, strategy: :one_for_one}
+      {DynamicSupervisor, name: Opal.SessionSupervisor, strategy: :one_for_one},
+      # RPC server for stdio JSON-RPC communication
+      # Uses :stdio which properly handles piped stdin from CLI
+      Opal.RPC.Server
     ]
-
-    # Don't start RPC server automatically - it will be started by the CLI
-    # when stdin is properly piped. This avoids TTY conflicts.
-    # The RPC server is started via Opal.RPC.Server.start_link/1 when needed.
 
     opts = [strategy: :rest_for_one, name: Opal.Supervisor]
 
